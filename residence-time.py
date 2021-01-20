@@ -86,7 +86,7 @@ with open(dump_file, newline = '') as dumpfile:
 		
 		if timestep == 0:
 			if adsorption_threshold == -1:
-				adsorption_threshold = len(adsorbate_mols_atom_cnt) # // 2
+				adsorption_threshold = len(adsorbate_mols_atom_cnt) // 2
 		
 		for mol_id, cnt in adsorbent_mols_atom_cnt:
 			for i in range(3):
@@ -127,4 +127,4 @@ with open(dump_file, newline = '') as dumpfile:
 
 reg = LinearRegression().fit(np.asarray(timesteps).reshape(-1, 1), np.asarray(log_auto_correlation).reshape(-1, 1))
 
-print(f"Calculated residence time is {-1 / reg.coef_} timesteps")
+print(f"Calculated residence time (in timesteps):", -1 / reg.coef_[0, 0])

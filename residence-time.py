@@ -71,18 +71,18 @@ with open(dump_file, newline = '') as dumpfile:
 					if mol_id in adsorbent_mols_avg_coords[j]:
 						adsorbent_mols_avg_coords[j][mol_id] += coords[j]
 					else:
-						adsorbent_mols_avg_coords[j][mol_id] = 0
+						adsorbent_mols_avg_coords[j][mol_id] = coords[j]
 			
 			if mol_id >= adsorbate_mol_id_start and mol_id <= adsorbate_mol_id_end:
 				for j in range(3):
 					if mol_id in adsorbate_mols_avg_coords[j]:
 						adsorbate_mols_avg_coords[j][mol_id] += coords[j]
 					else:
-						adsorbate_mols_avg_coords[j][mol_id] = 0
+						adsorbate_mols_avg_coords[j][mol_id] = coords[j]
 				if mol_id in adsorbate_mols_atom_cnt:
 					adsorbate_mols_atom_cnt[mol_id] += 1
 				else:
-					adsorbate_mols_atom_cnt[mol_id] = 0
+					adsorbate_mols_atom_cnt[mol_id] = 1
 		
 		if timestep == 0:
 			if adsorption_threshold == -1:

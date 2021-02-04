@@ -18,7 +18,7 @@ Molecular Dynamics residence time calculation script
     ```
 1. To run the script:
     ```console
-    $ python residence-time.py "path_to_data_file" "path_to_dump_file" adsorbent_mol_id_start adsorbent_mol_id_end adsorbate_mol_id_start adsorbate_mol_id_end --adsorption_threshold=some_number
+    $ python residence-time.py "path_to_data_file" "path_to_dump_file" adsorbent_atom_id_start adsorbent_atom_id_end adsorbate_atom_id_start adsorbate_atom_id_end --adsorption_threshold=some_number
     ```
     For example,
     ```console

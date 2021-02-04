@@ -1,7 +1,4 @@
-#!/usr/bin/env python
-
-# Questions:
-# What are ix, iy and iz?
+#!/usr/bin/env python3
 
 import argparse
 from heapq import nsmallest
@@ -12,19 +9,19 @@ from sklearn.linear_model import LinearRegression
 argument_parser = argparse.ArgumentParser(description = 'Molecular Dynamics Residence Time')
 argument_parser.add_argument('data_file', type = str, help = 'Data file')
 argument_parser.add_argument('dump_file', type = str, help = 'Dump file')
-argument_parser.add_argument('adsorbent_mol_id_start', type = int, help = 'Adsorbent molecule id start (inclusive)')
-argument_parser.add_argument('adsorbent_mol_id_end', type = int, help = 'Adsorbent molecule id end (inclusive)')
-argument_parser.add_argument('adsorbate_mol_id_start', type = int, help = 'Adsorbate molecule id start (inclusive)')
-argument_parser.add_argument('adsorbate_mol_id_end', type = int, help = 'Adsorbate molecule id end (inclusive)')
+argument_parser.add_argument('adsorbent_atom_id_start', type = int, help = 'Adsorbent atom id start (inclusive)')
+argument_parser.add_argument('adsorbent_atom_id_end', type = int, help = 'Adsorbent atom id end (inclusive)')
+argument_parser.add_argument('adsorbate_atom_id_start', type = int, help = 'Adsorbate atom id start (inclusive)')
+argument_parser.add_argument('adsorbate_atom_id_end', type = int, help = 'Adsorbate atom id end (inclusive)')
 argument_parser.add_argument('--adsorption_threshold', type = int, default = -1, help = 'Threshold for the number of molecules considered adsorbed on the adsorbent at any instant of time (defaults to half the number of adsorbate molecules)')
 
 args = argument_parser.parse_args()
 data_file = args.data_file
 dump_file = args.dump_file
-adsorbent_mol_id_start = args.adsorbent_mol_id_start
-adsorbent_mol_id_end = args.adsorbent_mol_id_end
-adsorbate_mol_id_start = args.adsorbate_mol_id_start
-adsorbate_mol_id_end = args.adsorbate_mol_id_end
+adsorbent_atom_id_start = args.adsorbent_atom_id_start
+adsorbent_atom_id_end = args.adsorbent_atom_id_end
+adsorbate_atom_id_start = args.adsorbate_atom_id_start
+adsorbate_atom_id_end = args.adsorbate_atom_id_end
 adsorption_threshold = args.adsorption_threshold
 
 atom_id_to_mol_id = {}
@@ -54,61 +51,49 @@ with open(dump_file, newline = '') as dumpfile:
 			dumpfile.readline()
 		
 		adsorbent_mols_avg_coords = [{}, {}, {}]
-		adsorbent_mols_atom_cnt = {}
 		adsorbate_mols_avg_coords = [{}, {}, {}]
-		adsorbate_mols_atom_cnt = {}
 		for i in range(num_atoms):
 			coords = [0] * 3
 			atom_id, _, coords[0], coords[1], coords[2], _, _, _ = dumpfile.readline().split()
 			atom_id = int(atom_id)
 			for j in range(3):
 				coords[j] = float(coords[j])
-			
-			mol_id = atom_id_to_mol_id[atom_id]
 
-			if mol_id >= adsorbent_mol_id_start and mol_id <= adsorbent_mol_id_end:
+			if atom_id >= adsorbent_atom_id_start and atom_id <= adsorbent_atom_id_end:
+				mol_id = atom_id_to_mol_id[atom_id]
 				for j in range(3):
 					if mol_id in adsorbent_mols_avg_coords[j]:
-						adsorbent_mols_avg_coords[j][mol_id] += coords[j]
+						adsorbent_mols_avg_coords[j][mol_id][0] += coords[j]
+						adsorbent_mols_avg_coords[j][mol_id][1] += 1
 					else:
-						adsorbent_mols_avg_coords[j][mol_id] = coords[j]
+						adsorbent_mols_avg_coords[j][mol_id] = [coords[j], 1]
 			
-			if mol_id >= adsorbate_mol_id_start and mol_id <= adsorbate_mol_id_end:
+			if atom_id >= adsorbate_atom_id_start and atom_id <= adsorbate_atom_id_end:
+				mol_id = atom_id_to_mol_id[atom_id]
 				for j in range(3):
 					if mol_id in adsorbate_mols_avg_coords[j]:
-						adsorbate_mols_avg_coords[j][mol_id] += coords[j]
+						adsorbate_mols_avg_coords[j][mol_id][0] += coords[j]
+						adsorbate_mols_avg_coords[j][mol_id][1] += 1
 					else:
-						adsorbate_mols_avg_coords[j][mol_id] = coords[j]
-				if mol_id in adsorbate_mols_atom_cnt:
-					adsorbate_mols_atom_cnt[mol_id] += 1
-				else:
-					adsorbate_mols_atom_cnt[mol_id] = 1
+						adsorbate_mols_avg_coords[j][mol_id] = [coords[j], 1]
 		
 		if timestep == 0:
 			if adsorption_threshold == -1:
-				adsorption_threshold = len(adsorbate_mols_atom_cnt) // 2
-		
-		for mol_id, cnt in adsorbent_mols_atom_cnt:
-			for i in range(3):
-				adsorbent_mols_avg_coords[i][mol_id] /= cnt
-
-		for mol_id, cnt in adsorbate_mols_atom_cnt.items():
-			for i in range(3):
-				adsorbate_mols_avg_coords[i][mol_id] /= cnt
-		
+				adsorption_threshold = len(adsorbate_mols_avg_coords[0]) // 2
+				
 		adsorbent_avg_coords = [0] * 3
-		for mol_id, cnt in adsorbent_mols_atom_cnt.items():
-			for i in range(3):
-				adsorbent_avg_coords[i] += adsorbent_mols_avg_coords[i][mol_id]
-		for mol_id, cnt in adsorbent_mols_atom_cnt:
-			for i in range(3):
-				adsorbent_avg_coords[i] /= len(adsorbent_mols_avg_coords[i])
+		for i in range(3):
+			for _, mol_avg in adsorbent_mols_avg_coords[i].items():
+				adsorbent_avg_coords[i] += mol_avg[0] / mol_avg[1]
+		for i in range(3):
+			adsorbent_avg_coords[i] /= len(adsorbent_mols_avg_coords[i])
 
 		distances_and_ids = []
-		for mol_id, cnt in adsorbate_mols_atom_cnt.items():
+		for mol_id, _ in adsorbate_mols_avg_coords[0].items():
 			dist = 0
 			for i in range(3):
-				dist += (adsorbate_mols_avg_coords[i][mol_id] - adsorbent_avg_coords[i]) ** 2
+				mol_avg = adsorbate_mols_avg_coords[i][mol_id]
+				dist += (mol_avg[0] / mol_avg[1] - adsorbent_avg_coords[i]) ** 2
 			distances_and_ids.append((dist, mol_id))
 		
 		closest_distances_and_ids = nsmallest(adsorption_threshold, distances_and_ids)

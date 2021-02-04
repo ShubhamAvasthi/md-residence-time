@@ -24,7 +24,14 @@ adsorbate_atom_id_start = args.adsorbate_atom_id_start
 adsorbate_atom_id_end = args.adsorbate_atom_id_end
 adsorption_threshold = args.adsorption_threshold
 
+def is_adsorbent_atom(atom_id):
+	return atom_id >= adsorbent_atom_id_start and atom_id <= adsorbent_atom_id_end
+
+def is_adsorbate_atom(atom_id):
+	return atom_id >= adsorbate_atom_id_start and atom_id <= adsorbate_atom_id_end
+
 atom_id_to_mol_id = {}
+mols_continuously_remained_adsorbed = set()
 with open(data_file, newline = '') as datafile:
 	for line in datafile:
 		if line == 'Atoms\n':
@@ -37,8 +44,13 @@ with open(data_file, newline = '') as datafile:
 		atom_id = int(atom_id)
 		mol_id = int(mol_id)
 		atom_id_to_mol_id[atom_id] = mol_id
+		if is_adsorbate_atom(atom_id):
+			mols_continuously_remained_adsorbed.add(mol_id)
 
-initially_adsorbed_mols = set()
+if adsorption_threshold == -1:
+	adsorption_threshold = len(mols_continuously_remained_adsorbed) // 2
+
+initially_adsorbed_mols = 0		# Will be initialized after the first timestep data gets processed
 log_auto_correlation = []
 timesteps = []
 with open(dump_file, newline = '') as dumpfile:
@@ -59,7 +71,7 @@ with open(dump_file, newline = '') as dumpfile:
 			for j in range(3):
 				coords[j] = float(coords[j])
 
-			if atom_id >= adsorbent_atom_id_start and atom_id <= adsorbent_atom_id_end:
+			if is_adsorbent_atom(atom_id):
 				mol_id = atom_id_to_mol_id[atom_id]
 				for j in range(3):
 					if mol_id in adsorbent_mols_avg_coords[j]:
@@ -68,7 +80,7 @@ with open(dump_file, newline = '') as dumpfile:
 					else:
 						adsorbent_mols_avg_coords[j][mol_id] = [coords[j], 1]
 			
-			if atom_id >= adsorbate_atom_id_start and atom_id <= adsorbate_atom_id_end:
+			if is_adsorbate_atom(atom_id):
 				mol_id = atom_id_to_mol_id[atom_id]
 				for j in range(3):
 					if mol_id in adsorbate_mols_avg_coords[j]:
@@ -76,10 +88,6 @@ with open(dump_file, newline = '') as dumpfile:
 						adsorbate_mols_avg_coords[j][mol_id][1] += 1
 					else:
 						adsorbate_mols_avg_coords[j][mol_id] = [coords[j], 1]
-		
-		if timestep == 0:
-			if adsorption_threshold == -1:
-				adsorption_threshold = len(adsorbate_mols_avg_coords[0]) // 2
 				
 		adsorbent_avg_coords = [0] * 3
 		for i in range(3):
@@ -89,7 +97,7 @@ with open(dump_file, newline = '') as dumpfile:
 			adsorbent_avg_coords[i] /= len(adsorbent_mols_avg_coords[i])
 
 		distances_and_ids = []
-		for mol_id, _ in adsorbate_mols_avg_coords[0].items():
+		for mol_id in adsorbate_mols_avg_coords[0]:
 			dist = 0
 			for i in range(3):
 				mol_avg = adsorbate_mols_avg_coords[i][mol_id]
@@ -98,16 +106,16 @@ with open(dump_file, newline = '') as dumpfile:
 		
 		closest_distances_and_ids = nsmallest(adsorption_threshold, distances_and_ids)
 
-		if timestep == 0:
-			for _, mol_id in closest_distances_and_ids:
-				initially_adsorbed_mols.add(mol_id)
-		
-		num_still_adsorbed = 0
+		new_set = set()
 		for _, mol_id in closest_distances_and_ids:
-			if mol_id in initially_adsorbed_mols:
-				num_still_adsorbed += 1
+			if mol_id in mols_continuously_remained_adsorbed:
+				new_set.add(mol_id)
+		mols_continuously_remained_adsorbed = new_set.copy()
+
+		if timestep == 0:
+			initially_adsorbed_mols = len(mols_continuously_remained_adsorbed)
 		
-		log_auto_correlation.append(log(num_still_adsorbed / len(initially_adsorbed_mols)))
+		log_auto_correlation.append(log(len(mols_continuously_remained_adsorbed) / initially_adsorbed_mols))
 		timesteps.append(timestep)
 
 reg = LinearRegression().fit(np.asarray(timesteps).reshape(-1, 1), np.asarray(log_auto_correlation).reshape(-1, 1))

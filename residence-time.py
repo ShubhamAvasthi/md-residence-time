@@ -110,7 +110,7 @@ with open(dump_file, newline = '') as dumpfile:
 		for _, mol_id in closest_distances_and_ids:
 			if mol_id in mols_continuously_remained_adsorbed:
 				new_set.add(mol_id)
-		mols_continuously_remained_adsorbed = new_set.copy()
+		mols_continuously_remained_adsorbed = new_set
 
 		if timestep == 0:
 			initially_adsorbed_mols = len(mols_continuously_remained_adsorbed)

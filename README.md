@@ -6,9 +6,13 @@ Molecular Dynamics residence time calculation script
    ```console
    $ pip install --upgrade argparse
    ```
-1. To install sklearn:  
+1. To install sklearn:
    ```console
    $ pip install --upgrade sklearn
+   ```
+1. To install tqdm:
+   ```console
+   $ pip install --upgrade tqdm
    ```
 
 ## Running the script

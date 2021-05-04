@@ -1,5 +1,5 @@
 # md-residence-time
-Molecular Dynamics residence time calculation script
+Residence Time Calculation Script for LAMMPS Molecular Dynamics Output
 
 ## Installations
 1. To install argparse:

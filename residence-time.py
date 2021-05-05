@@ -66,7 +66,7 @@ with open(data_file, newline = '') as datafile:
 		if line == 'Atoms\n':
 			break
 	datafile.readline()
-	for _ in trange(num_atoms, desc = 'Reading data file  '):
+	for _ in trange(num_atoms, desc = 'Processing data file'):
 		line = datafile.readline()
 		if line == '\n':
 			break
@@ -79,12 +79,24 @@ with open(data_file, newline = '') as datafile:
 
 # Initializations using the dump file
 
-timesteps = []
+num_timesteps = 0
+previous_timestep = -1
+time_delta = -1
 adsorbed_mols_sets = []
 
-with open(dump_file, newline = '') as dumpfile, tqdm(total = fstat(dumpfile.fileno()).st_size, desc = 'Reading dump file  ') as pbar:
+with open(dump_file, newline = '') as dumpfile, tqdm(total = fstat(dumpfile.fileno()).st_size, desc = 'Processing dump file') as pbar:
 	while dumpfile.readline():
-		timesteps.append(int(dumpfile.readline().strip()))
+		num_timesteps += 1
+
+		if previous_timestep == -1:
+			previous_timestep = int(dumpfile.readline().strip())
+		elif time_delta == -1:
+			time_delta = int(dumpfile.readline().strip()) - previous_timestep
+			previous_timestep += time_delta
+		else:
+			assert int(dumpfile.readline().strip()) == previous_timestep + time_delta, 'The difference between each pair of consecutive timesteps in the dump file should be same'
+			previous_timestep += time_delta
+		
 		dumpfile.readline()
 		num_atoms = int(dumpfile.readline().strip())
 
@@ -126,35 +138,33 @@ with open(dump_file, newline = '') as dumpfile, tqdm(total = fstat(dumpfile.file
 
 # Residence time calculation
 
-num = [0] * len(timesteps)
-auto_correlation_avgs = [0] * len(timesteps)
+num = [0] * num_timesteps
+auto_correlation_avgs = [0] * num_timesteps
 
-for t0_index in trange(len(timesteps), desc = 'Computing res. time'):
+for t0_index in trange(num_timesteps, desc = 'Computing res. time '):
 	mols_continuously_remained_adsorbed = adsorbate_mols_set.copy()
 	auto_correlation = []
 	
-	for t_index in range(t0_index, len(timesteps)):
+	for t0_plus_t_index in range(t0_index, num_timesteps):
 		new_adsorbed_set = set()
-		for adsorbed_mol_id in adsorbed_mols_sets[t_index]:
+		for adsorbed_mol_id in adsorbed_mols_sets[t0_plus_t_index]:
 			if adsorbed_mol_id in mols_continuously_remained_adsorbed:
 				new_adsorbed_set.add(adsorbed_mol_id)
 		mols_continuously_remained_adsorbed = new_adsorbed_set
-
-		if t_index == t0_index:
-			initially_adsorbed_mols = len(mols_continuously_remained_adsorbed)
-		
-		auto_correlation.append(len(mols_continuously_remained_adsorbed) / initially_adsorbed_mols)
-
-	while auto_correlation and auto_correlation[-1] == 0:
-		auto_correlation.pop()
+		auto_correlation.append(len(mols_continuously_remained_adsorbed))
 
 	for i in range(len(auto_correlation)):
-		auto_correlation_avgs[t0_index + i] *= num[t0_index + i]
-		auto_correlation_avgs[t0_index + i] += auto_correlation[i]
-		num[t0_index + i] += 1
-		auto_correlation_avgs[t0_index + i] /= num[t0_index + i]
+		auto_correlation_avgs[i] += auto_correlation[i]
 
-auto_correlation_avgs = np.array(np.log(auto_correlation_avgs)).reshape(-1, 1)
-timesteps = np.array(timesteps).reshape(-1, 1)
+for i in range(1, num_timesteps + 1):
+	auto_correlation_avgs[num_timesteps - i] /= i
 
-print("Calculated residence time (in timesteps):", -1 / LinearRegression().fit(timesteps, auto_correlation_avgs).coef_[0, 0])
+# "auto_correlation_avgs[-1] < 1" condition helps decrease the skewness of the graph
+# Removing skewness seems difficult, so currently using a heuristic
+while auto_correlation_avgs and auto_correlation_avgs[-1] < 1:
+	auto_correlation_avgs.pop()
+
+auto_correlation_avgs = np.log(np.array(auto_correlation_avgs)).reshape(-1, 1)
+time_deltas = np.array([i * time_delta for i in range(len(auto_correlation_avgs))]).reshape(-1, 1)
+
+print("Calculated residence time (in timesteps):", -1 / LinearRegression().fit(time_deltas, auto_correlation_avgs).coef_[0, 0])
